@@ -1,15 +1,14 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-    <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-32.png">
-    <link rel="icon" type="image/png" sizes="16x16" href="/icons/icon-16.png">
-    <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-180.png">
+    <link rel="icon" href="https://fav.farm/✈️">
+    <link rel="apple-touch-icon" href="https://fav.farm/✈️">
     <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#144d29">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="프리토킹여권">
+    <meta name="apple-mobile-web-app-title" content="My Eng">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>나의 프리토킹 여권</title>
@@ -247,11 +246,23 @@
         ];
         let fakeResponseIndex = 0;
 
-        function todayStr(){ return new Date().toISOString().slice(0,10); }
-        function addDays(dateStr, n){ const d = new Date(dateStr); d.setDate(d.getDate()+n); return d.toISOString().slice(0,10); }
+        // 로컬(기기) 날짜 기준으로 계산합니다. toISOString()은 UTC라서
+        // 한국 자정 이후에도 최대 9시간까지 "어제"로 계산되는 문제가 있었습니다.
+        function pad2(n){ return String(n).padStart(2, '0'); }
+        function dateToStr(d){ return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`; }
+        function todayStr(){ return dateToStr(new Date()); }
+        function addDays(dateStr, n){
+            const [y, m, d] = dateStr.split('-').map(Number);
+            const dt = new Date(y, m - 1, d);
+            dt.setDate(dt.getDate() + n);
+            return dateToStr(dt);
+        }
         function escapeHtml(str){ const div = document.createElement('div'); div.textContent = str || ''; return div.innerHTML; }
         function esc1(str){ return (str||'').replace(/\\/g, '\\\\').replace(/'/g, "\\'"); }
         function mateOf(id){ return id === 'orgol' ? 'seal' : 'orgol'; }
+        function koreanName(id){ return id === 'orgol' ? '오르골' : '세알'; }
+        const MATE_TAG_KEY = '__mate_recommend__';
+        function mateRecommendLabel(){ return `${koreanName(mateOf(myIdentity))}_추천`; }
 
         // ============================================================
         // Firestore 연결 콜백들 (위 모듈 스크립트에서 호출)
@@ -642,7 +653,7 @@ tip에는 왜 이 표현이 자연스러운지 1~2문장으로 설명해줘.
             await addEntry({
                 owner: myIdentity,
                 original: s.original, english: s.english, vocabWord: '', vocabMeaning: '',
-                tip: `${mateOf(myIdentity) === 'orgol' ? '오르골' : '세알'}에게서 훔쳐온 표현이에요.`,
+                tip: `${koreanName(mateOf(myIdentity))}에게서 훔쳐온 표현이에요.`,
                 tag: s.tag, isStolen: true, cheerCount: 0, cheeredBy: [],
                 createdAt: today, stage: 0, nextReview: addDays(today, intervals[0])
             });
@@ -651,14 +662,15 @@ tip에는 왜 이 표현이 자연스러운지 1~2문장으로 설명해줘.
         function renderTagRow(){
             const myEntries = entries.filter(e => e.owner === myIdentity);
             const usedTags = [...new Set(myEntries.map(e => e.tag).filter(Boolean))];
-            const tags = ['전체보기', '세알_추천', ...usedTags];
+            const tags = ['전체보기', MATE_TAG_KEY, ...usedTags];
             const row = document.getElementById('tagRow');
             row.innerHTML = tags.map(t => {
                 const active = t === activeTag;
+                const label = t === MATE_TAG_KEY ? mateRecommendLabel() : t;
                 const cls = active
                     ? 'bg-[#144d29] text-white'
-                    : (t === '세알_추천' ? 'bg-white border border-[#bbf7d0] text-[#166534]' : 'bg-white border border-gray-200 text-gray-600');
-                return `<button onclick="setActiveTag('${t}')" class="shrink-0 ${cls} text-[10.5px] font-bold px-2.5 py-1.5 rounded-full shadow-2xs cursor-pointer">#${t}</button>`;
+                    : (t === MATE_TAG_KEY ? 'bg-white border border-[#bbf7d0] text-[#166534]' : 'bg-white border border-gray-200 text-gray-600');
+                return `<button onclick="setActiveTag('${t}')" class="shrink-0 ${cls} text-[10.5px] font-bold px-2.5 py-1.5 rounded-full shadow-2xs cursor-pointer">#${label}</button>`;
             }).join('');
         }
         function setActiveTag(t){ activeTag = t; renderTagRow(); renderArchive(); }
@@ -671,7 +683,7 @@ tip에는 왜 이 표현이 자연스러운지 1~2문장으로 설명해줘.
             let filtered = entries.filter(e => e.owner === myIdentity && (
                 !q || e.original.toLowerCase().includes(q) || e.english.toLowerCase().includes(q) || (e.vocabWord||'').toLowerCase().includes(q)
             ));
-            if(activeTag === '세알_추천') filtered = filtered.filter(e => e.isStolen);
+            if(activeTag === MATE_TAG_KEY) filtered = filtered.filter(e => e.isStolen);
             else if(activeTag !== '전체보기') filtered = filtered.filter(e => e.tag === activeTag);
 
             if(filtered.length === 0){
@@ -701,7 +713,7 @@ tip에는 왜 이 표현이 자연스러운지 1~2문장으로 설명해줘.
                                     <button onclick="speakText('${esc1(e.english)}')" class="absolute top-1 right-0 text-gray-400 hover:text-[#144d29] transition cursor-pointer">
                                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5 10.5a1.5 1.5 0 00-1.5 1.5v4a1.5 1.5 0 001.5 1.5h3.586a1 1 0 01.707.293l4.414 4.414a1 1 0 001.707-.707V4.5a1 1 0 00-1.707-.707L10.293 8.207A1 1 0 019.586 8.5H5z"></path></svg>
                                     </button>
-                                    <span class="bg-gray-100 text-gray-500 text-[9.5px] font-bold px-1.5 py-0.5 rounded-md mb-1 inline-block">#${escapeHtml(e.tag||'일상')}${e.isStolen ? ' · #세알_추천' : ''}</span>
+                                    <span class="bg-gray-100 text-gray-500 text-[9.5px] font-bold px-1.5 py-0.5 rounded-md mb-1 inline-block">#${escapeHtml(e.tag||'일상')}${e.isStolen ? ' · #'+escapeHtml(mateRecommendLabel()) : ''}</span>
                                     <p class="text-[12px] font-bold text-slate-700">${escapeHtml(e.original)}</p>
                                     <p class="text-[13px] font-bold text-[#166534] mt-0.5">${escapeHtml(e.english)}</p>
                                     <p class="text-[10.5px] text-gray-400 mt-1">${e.stage}/${intervals.length}단계 ${e.vocabWord ? `· <b class="text-[#166534]">${escapeHtml(e.vocabWord)}</b> ${escapeHtml(e.vocabMeaning)}` : ''} · ❤️ ${e.cheerCount||0}</p>
