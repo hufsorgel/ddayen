@@ -1,0 +1,15 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /entries/{entryId} {
+      // 누구나 읽고 쓸 수 있습니다 (로그인 기능이 없는 2인 전용 앱 전제).
+      // owner 필드는 'orgol' 또는 'seal'만 허용, 그 외 임의 필드 주입은 막습니다.
+      allow read: if true;
+      allow create: if request.resource.data.owner in ['orgol', 'seal']
+                    && request.resource.data.original is string
+                    && request.resource.data.english is string;
+      allow update: if resource.data.owner in ['orgol', 'seal'];
+      allow delete: if false; // 실수로 지워지는 것 방지, 필요하면 콘솔에서 직접 삭제
+    }
+  }
+}

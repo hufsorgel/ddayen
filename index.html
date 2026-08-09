@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/icons/icon-16.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-180.png">
+    <link rel="manifest" href="/manifest.json">
+    <meta name="theme-color" content="#144d29">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="프리토킹여권">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>나의 프리토킹 여권</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .blur-text { filter: blur(6px); transition: filter 0.3s ease; user-select: none; }
+        .blur-text.revealed { filter: blur(0); }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        .accordion-content { max-height: 0; overflow: hidden; transition: max-height 0.3s ease-out; }
+        .accordion-content.open { max-height: 1200px; }
+        .rotate-icon { transition: transform 0.3s; }
+        .rotate-icon.open { transform: rotate(180deg); }
+    </style>
+</head>
+<body class="bg-[#f4f6f5] min-h-screen flex justify-center items-start p-2 text-slate-800 text-[13px]">
+
+    <div class="w-full max-w-md flex flex-col gap-3 pb-6">
+
+        <!-- 연결 상태 배너 -->
+        <div id="connStatus" class="hidden text-[11px] font-bold text-center py-1.5 rounded-lg"></div>
+
+        <!-- 🛫 상단 대시보드 -->
+        <div class="bg-white rounded-2xl p-4 shadow-xs border border-gray-100 flex flex-col gap-3">
+            <div class="flex justify-between items-center">
+                <h1 class="text-xl font-bold text-[#144d29] tracking-tight">나의 프리토킹 여권 ✈️</h1>
+                <select id="identitySelect" onchange="onIdentityChange(event)" class="text-[11px] bg-[#e8edf2] text-[#4b5563] px-2 py-1 rounded-full font-bold border-none focus:outline-none cursor-pointer">
+                    <option value="orgol">👤 오르골</option>
+                    <option value="seal">👤 세알</option>
+                </select>
+            </div>
+
+            <!-- 날짜 & 디데이 -->
+            <div class="flex gap-1.5 relative">
+                <div class="flex-1 bg-white border border-gray-200 rounded-xl py-2 px-2 flex items-center justify-center gap-1 font-bold text-slate-700 shadow-2xs">
+                    🗓️ <span id="displayDate">불러오는 중...</span>
+                </div>
+                <button onclick="openDdayPicker()" class="flex-1 bg-[#e6f7ed] border border-[#bbf7d0] rounded-xl py-2 px-2 flex items-center justify-center gap-1 font-bold text-[#166534] shadow-2xs cursor-pointer hover:bg-[#d1fae5] active:scale-95 transition">
+                    ⏳ <span id="displayDday">계산 중...</span>
+                </button>
+                <input type="date" id="ddayInput" onchange="onDdayChange(event)" class="absolute opacity-0 pointer-events-none w-0 h-0">
+            </div>
+
+            <!-- 진행률 & 세알과의 경쟁 게이지 바 -->
+            <div class="flex flex-col gap-0.5 mt-1">
+                <p class="text-[12px] text-gray-500 font-medium">오늘도 문장 저축, 프리토킹 부자 되자!</p>
+                <div class="flex justify-between text-[11px] text-gray-400 font-bold mt-1">
+                    <span>오늘의 문장 만들기 진행률 <span id="progressText">(0/5)</span></span>
+                </div>
+                <div class="w-full bg-[#e8edf2] h-2.5 rounded-full overflow-hidden mt-0.5">
+                    <div id="progressBar" class="bg-[#144d29] h-full rounded-full transition-all duration-300" style="width: 0%"></div>
+                </div>
+
+                <div class="bg-[#fafdF7] border border-gray-100 rounded-xl p-3 mt-2 flex flex-col gap-2 shadow-inner">
+                    <div class="flex items-center gap-2">
+                        <span id="myNameLabel" class="w-14 text-[11px] font-bold text-[#144d29] text-right">오르골</span>
+                        <div class="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+                            <div id="myCrewBar" class="h-full bg-[#144d29] rounded-full transition-all duration-300" style="width: 0%"></div>
+                        </div>
+                        <span id="myCrewText" class="w-8 text-[11px] font-bold text-[#144d29]">0/5</span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span id="mateNameLabel" class="w-14 text-[11px] font-bold text-gray-400 text-right">세알</span>
+                        <div class="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+                            <div id="mateBar" class="h-full bg-gray-400 rounded-full transition-all duration-300" style="width: 0%"></div>
+                        </div>
+                        <span id="mateText" class="w-8 text-[11px] font-bold text-gray-400">0/5</span>
+                    </div>
+                    <p id="rivalNudge" class="text-[11px] font-bold text-center hidden"></p>
+                    <p class="text-[9.5px] text-gray-400 text-center">🔄 상대방 진행률은 실시간으로 자동 반영돼요</p>
+                </div>
+            </div>
+
+            <!-- 🎯 탭 네비게이션 -->
+            <div class="flex border-t border-gray-50 pt-1 mt-1">
+                <button onclick="switchTab('exchange')" id="btn-exchange" class="flex-1 py-1.5 flex flex-col items-center text-[12px] font-bold text-[#144d29] border-b-2 border-[#144d29] transition">
+                    <span>EXCHANGE</span><span class="text-[9px] font-medium opacity-70">✏️ 문장 만들기</span>
+                </button>
+                <button onclick="switchTab('lounge')" id="btn-lounge" class="flex-1 py-1.5 flex flex-col items-center text-[12px] font-bold text-gray-400 border-b-2 border-transparent hover:text-gray-600 transition">
+                    <span>LOUNGE</span><span class="text-[9px] font-medium opacity-70">🔁 오늘 복습</span>
+                </button>
+                <button onclick="switchTab('archive')" id="btn-archive" class="flex-1 py-1.5 flex flex-col items-center text-[12px] font-bold text-gray-400 border-b-2 border-transparent hover:text-gray-600 transition">
+                    <span>ARCHIVE</span><span class="text-[9px] font-medium opacity-70">📚 전체 기록</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- ==================== 탭 1: EXCHANGE (문장 만들기) ==================== -->
+        <div id="tab-exchange" class="flex flex-col gap-1.5">
+            <h2 class="text-[15px] font-bold text-[#144d29] flex items-center gap-1 px-1 mt-1">💱 문장 환전소</h2>
+
+            <div id="apiWarning" class="hidden bg-red-50 border border-red-200 text-red-600 text-[11px] font-bold rounded-xl p-3">
+                ⚠️ 코드 아래쪽 GEMINI_API_KEY 자리에 본인 API 키를 넣어주세요.
+            </div>
+
+            <div id="testModeBanner" class="hidden bg-amber-50 border border-amber-200 text-amber-700 text-[11px] font-bold rounded-xl p-3">
+                🧪 테스트 모드: API 키 없이 가짜 응답으로 동작 중입니다.
+            </div>
+
+            <div class="bg-white p-3.5 rounded-xl shadow-2xs border border-gray-100 flex flex-col gap-2">
+                <p class="text-[11px] text-[#166534] font-bold bg-[#e6f7ed] px-2.5 py-2 rounded-lg inline-block">
+                    💡 일단 아는 단어로 영어로 시도해보고, 막히면 한국어 섞어써도 OK
+                </p>
+                <textarea id="koreanInput" onkeydown="handleEnter(event)" rows="2" placeholder="하고 싶은 말을 던져보세요! (엔터로 즉시 환전)" class="w-full bg-[#f8fafc] border border-gray-200 rounded-xl p-3 text-[13px] font-medium focus:outline-none focus:border-[#144d29] transition resize-none"></textarea>
+                <div class="flex justify-between items-center px-1">
+                    <span id="loadingSpinner" class="text-[11px] text-[#166534] font-bold hidden animate-pulse">✈️ AI 원어민이 환전 중입니다...</span>
+                    <button onclick="translateWithGemini()" class="ml-auto bg-[#144d29] text-white px-3.5 py-2 rounded-lg text-[11px] font-bold shadow-2xs active:scale-95 transition cursor-pointer">
+                        원어민 영어로 환전하기 ✨
+                    </button>
+                </div>
+            </div>
+
+            <div id="resultContainer" class="flex flex-col gap-1.5"></div>
+        </div>
+
+        <!-- ==================== 탭 2: LOUNGE (오늘 복습) ==================== -->
+        <div id="tab-lounge" class="hidden flex-col gap-1.5">
+            <h2 class="text-[15px] font-bold text-[#144d29] flex items-center gap-1 px-1 mt-1">🧠 기내 라운지 복습</h2>
+            <p class="text-[10.5px] text-gray-400 px-1 -mt-1">복습한 문장은 사라지지 않고 ARCHIVE에 계속 남아요</p>
+            <div id="loungeContainer" class="flex flex-col gap-1.5"></div>
+
+            <div class="flex flex-col gap-1.5 pt-3">
+                <h3 id="mateSectionTitle" class="text-[13px] font-bold text-[#144d29] px-1">👀 세알의 오늘 문장</h3>
+                <div id="mateSentencesContainer" class="flex flex-col gap-1.5"></div>
+            </div>
+        </div>
+
+        <!-- ==================== 탭 3: ARCHIVE (전체 기록) ==================== -->
+        <div id="tab-archive" class="hidden flex-col gap-1.5">
+            <h2 class="text-[15px] font-bold text-[#144d29] flex items-center gap-1 px-1 mt-1">💼 기내 수하물</h2>
+
+            <div class="relative">
+                <span class="absolute left-3 top-3 text-gray-400">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                </span>
+                <input type="text" id="archiveSearch" oninput="renderArchive()" placeholder="단어나 뜻으로 검색..." class="w-full bg-white border border-gray-200 rounded-xl pl-9 pr-3 py-2.5 text-[13px] focus:outline-none focus:border-[#144d29] shadow-inner">
+            </div>
+
+            <div id="tagRow" class="flex gap-1.5 overflow-x-auto hide-scrollbar py-0.5"></div>
+
+            <div id="archiveContainer" class="flex flex-col gap-1.5 mt-1"></div>
+        </div>
+
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- Firebase (Firestore) - 실시간 동기화                          -->
+    <!-- ============================================================ -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+        import {
+            getFirestore, collection, addDoc, updateDoc, doc,
+            onSnapshot, query, orderBy
+        } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+        // ⚠️ 아래 firebaseConfig를 Firebase 콘솔 > 프로젝트 설정 > 내 앱에서 복사한 값으로 교체하세요.
+        // (README.md의 "2. Firebase 설정" 단계를 먼저 진행해주세요)
+        const firebaseConfig = {
+            apiKey: "YOUR_API_KEY",
+            authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+            projectId: "YOUR_PROJECT_ID",
+            storageBucket: "YOUR_PROJECT_ID.appspot.com",
+            messagingSenderId: "YOUR_SENDER_ID",
+            appId: "YOUR_APP_ID"
+        };
+
+        const isFirebaseConfigured = firebaseConfig.apiKey && firebaseConfig.apiKey !== "YOUR_API_KEY";
+
+        window.__firebaseReady = false;
+
+        if (isFirebaseConfigured) {
+            try {
+                const app = initializeApp(firebaseConfig);
+                const db = getFirestore(app);
+                const entriesCol = collection(db, "entries");
+
+                window.__fsAddEntry = async (entry) => {
+                    await addDoc(entriesCol, entry);
+                };
+                window.__fsUpdateEntry = async (id, changes) => {
+                    await updateDoc(doc(db, "entries", id), changes);
+                };
+
+                const q = query(entriesCol, orderBy("createdAt", "desc"));
+                onSnapshot(q, (snapshot) => {
+                    const list = [];
+                    snapshot.forEach(d => list.push({ id: d.id, ...d.data() }));
+                    window.__onEntriesUpdate(list);
+                }, (err) => {
+                    console.error("Firestore 연결 오류:", err);
+                    window.__onFirestoreError(err);
+                });
+
+                window.__firebaseReady = true;
+                window.__onFirestoreConnected();
+            } catch (e) {
+                console.error("Firebase 초기화 실패:", e);
+                window.__onFirestoreError(e);
+            }
+        } else {
+            window.__onFirestoreNotConfigured();
+        }
+    </script>
+
+    <script>
+        // ============================================================
+        // 설정
+        // ============================================================
+        const GEMINI_API_KEY = "내 재미나이 api 키"; // 여기에 실제 키를 넣으면 TEST_MODE는 자동으로 꺼집니다.
+        const GEMINI_MODEL = "gemini-3.5-flash";
+        const FORCE_TEST_MODE = false;
+
+        const TAG_OPTIONS = ["식당", "이동", "쇼핑", "숙소", "일상", "감정"];
+        const DDAY_KEY = 'passport_dday';
+        const IDENTITY_KEY = 'passport_identity';
+        const MATE_STATE_KEY = 'passport_mate_sentence_state'; // 로컬 캐시(응원 눌렀는지 등 UI용)
+
+        const intervals = [1, 3, 7, 14, 30];
+        let entries = []; // Firestore에서 실시간으로 채워짐 (로컬 저장 없음)
+        let activeTag = '전체보기';
+        let targetDateObj = new Date(2026, 11, 31);
+        const targetCount = 5;
+        let myIdentity = 'orgol';
+
+        const isTestMode = FORCE_TEST_MODE || !GEMINI_API_KEY || GEMINI_API_KEY.includes('여기에') || GEMINI_API_KEY.includes('내 재미나이');
+
+        const FAKE_RESPONSES = [
+            { label: '정상 케이스', raw: `{"english": "I'm starving.", "vocab_word": "starving", "vocab_meaning": "배가 몹시 고픈", "tip": "hungry보다 훨씬 강한 배고픔을 표현할 때 원어민들이 캐주얼하게 씁니다.", "tag": "일상"}` },
+            { label: '콩글리시 · 코드펜스 섞임', raw: "```json\n{\"english\": \"I already had dinner, I'm super full.\", \"vocab_word\": \"full\", \"vocab_meaning\": \"배부른\", \"tip\": \"이미 영어로 입력하셨네요! 자연스러운 원어민 표현으로 다듬었습니다.\", \"tag\": \"일상\"}\n```" },
+            { label: '콩글리시 · 파싱 깨짐(설명 텍스트 혼입)', raw: `물론입니다! 다음과 같이 다듬어 드릴게요:\n{"english": "I already had dinner, I'm really hungry though", "vocab_word": "though", "vocab_meaning": "그래도(문장 끝 구어체)", "tip": "모순된 상황을 자연스럽게 이어줄 때 though를 문장 끝에 씁니다.", "tag": "일상"}\n이 표현이 훨씬 자연스러워요!` }
+        ];
+        let fakeResponseIndex = 0;
+
+        function todayStr(){ return new Date().toISOString().slice(0,10); }
+        function addDays(dateStr, n){ const d = new Date(dateStr); d.setDate(d.getDate()+n); return d.toISOString().slice(0,10); }
+        function escapeHtml(str){ const div = document.createElement('div'); div.textContent = str || ''; return div.innerHTML; }
+        function esc1(str){ return (str||'').replace(/\\/g, '\\\\').replace(/'/g, "\\'"); }
+        function mateOf(id){ return id === 'orgol' ? 'seal' : 'orgol'; }
+
+        // ============================================================
+        // Firestore 연결 콜백들 (위 모듈 스크립트에서 호출)
+        // ============================================================
+        function showConnStatus(text, cls){
+            const el = document.getElementById('connStatus');
+            el.textContent = text;
+            el.className = `text-[11px] font-bold text-center py-1.5 rounded-lg ${cls}`;
+            el.classList.remove('hidden');
+        }
+        window.__onFirestoreConnected = () => {
+            showConnStatus('🟢 실시간 동기화 연결됨', 'bg-[#e6f7ed] text-[#166534]');
+            setTimeout(() => document.getElementById('connStatus').classList.add('hidden'), 2500);
+        };
+        window.__onFirestoreNotConfigured = () => {
+            showConnStatus('⚠️ Firebase 설정이 안 되어 있어 로컬(이 기기)에서만 동작합니다. README 참고', 'bg-amber-50 text-amber-700');
+        };
+        window.__onFirestoreError = (err) => {
+            showConnStatus('🔴 실시간 동기화 연결 실패 — 콘솔(F12)에서 오류 확인', 'bg-red-50 text-red-600');
+        };
+        window.__onEntriesUpdate = (list) => {
+            entries = list;
+            renderProgress(); renderMate(); renderLounge(); renderMateSentences(); renderArchive();
+        };
+
+        // Firestore가 연결 안 됐을 때를 대비한 로컬 폴백 저장소 (기기 단독 테스트용)
+        const LOCAL_FALLBACK_KEY = 'passport_entries_local_fallback';
+        function loadLocalFallback(){
+            try{ return JSON.parse(localStorage.getItem(LOCAL_FALLBACK_KEY) || '[]'); }catch(e){ return []; }
+        }
+        function saveLocalFallback(){ localStorage.setItem(LOCAL_FALLBACK_KEY, JSON.stringify(entries)); }
+
+        async function addEntry(entry){
+            if(window.__firebaseReady){
+                await window.__fsAddEntry(entry);
+            } else {
+                entries.unshift({ id: 'local_' + Date.now(), ...entry });
+                saveLocalFallback();
+                window.__onEntriesUpdate(entries);
+            }
+        }
+        async function updateEntry(id, changes){
+            if(window.__firebaseReady){
+                await window.__fsUpdateEntry(id, changes);
+            } else {
+                const item = entries.find(e => e.id === id);
+                if(item) Object.assign(item, changes);
+                saveLocalFallback();
+                window.__onEntriesUpdate(entries);
+            }
+        }
+
+        function loadAll(){
+            myIdentity = localStorage.getItem(IDENTITY_KEY) || 'orgol';
+            document.getElementById('identitySelect').value = myIdentity;
+            applyIdentityLabels();
+
+            const savedDday = localStorage.getItem(DDAY_KEY);
+            if(savedDday){
+                const parsed = new Date(savedDday);
+                if(!isNaN(parsed)) targetDateObj = parsed;
+            }
+
+            if(isTestMode) document.getElementById('testModeBanner').classList.remove('hidden');
+            else if(!GEMINI_API_KEY || GEMINI_API_KEY.includes('여기에')) document.getElementById('apiWarning').classList.remove('hidden');
+
+            initDates();
+
+            // Firebase가 아직 설정 안 된 상태라면 로컬 폴백 데이터로 우선 렌더링
+            if(!window.__firebaseReady){
+                entries = loadLocalFallback();
+                renderProgress(); renderMate(); renderLounge(); renderMateSentences(); renderArchive();
+            }
+        }
+
+        function initDates() {
+            const today = new Date();
+            const days = ['일', '월', '화', '수', '목', '금', '토'];
+            document.getElementById('displayDate').innerText = `${today.getFullYear()}년 ${today.getMonth()+1}월 ${today.getDate()}일 (${days[today.getDay()]})`;
+            const diffDays = Math.ceil((targetDateObj - today) / (1000 * 60 * 60 * 24));
+            if (diffDays > 0) document.getElementById('displayDday').innerText = `D-${diffDays}`;
+            else if (diffDays === 0) document.getElementById('displayDday').innerText = `D-Day! ✈️`;
+            else document.getElementById('displayDday').innerText = `목표일 도달 🎉`;
+        }
+
+        function applyIdentityLabels(){
+            const isOrgol = myIdentity === 'orgol';
+            document.getElementById('myNameLabel').innerText = isOrgol ? '오르골' : '세알';
+            document.getElementById('mateNameLabel').innerText = isOrgol ? '세알' : '오르골';
+            document.getElementById('mateSectionTitle').innerText = `👀 ${isOrgol ? '세알' : '오르골'}의 오늘 문장`;
+        }
+        function onIdentityChange(e){
+            myIdentity = e.target.value;
+            localStorage.setItem(IDENTITY_KEY, myIdentity);
+            applyIdentityLabels();
+            renderProgress(); renderMate(); renderMateSentences(); renderArchive();
+        }
+
+        function openDdayPicker(){
+            const input = document.getElementById('ddayInput');
+            input.value = targetDateObj.toISOString().slice(0,10);
+            if(input.showPicker){ input.showPicker(); } else { input.classList.remove('opacity-0','pointer-events-none','w-0','h-0'); input.focus(); }
+        }
+        function onDdayChange(e){
+            const parsed = new Date(e.target.value);
+            if(!isNaN(parsed)){
+                targetDateObj = parsed;
+                localStorage.setItem(DDAY_KEY, e.target.value);
+                initDates();
+            }
+        }
+
+        function speakText(text) {
+            if ('speechSynthesis' in window) {
+                const u = new SpeechSynthesisUtterance(text);
+                u.lang = 'en-US'; u.rate = 0.9;
+                window.speechSynthesis.speak(u);
+            }
+        }
+
+        function switchTab(tabName) {
+            ['tab-exchange', 'tab-lounge', 'tab-archive'].forEach(id => {
+                document.getElementById(id).classList.add('hidden');
+                document.getElementById(id).classList.remove('flex');
+            });
+            ['btn-exchange', 'btn-lounge', 'btn-archive'].forEach(id => {
+                document.getElementById(id).className = "flex-1 py-1.5 flex flex-col items-center text-[12px] font-bold text-gray-400 border-b-2 border-transparent hover:text-gray-600 transition";
+            });
+            document.getElementById(`tab-${tabName}`).classList.remove('hidden');
+            document.getElementById(`tab-${tabName}`).classList.add('flex');
+            document.getElementById(`btn-${tabName}`).className = "flex-1 py-1.5 flex flex-col items-center text-[12px] font-bold text-[#144d29] border-b-2 border-[#144d29] transition";
+            if(tabName === 'lounge'){ renderLounge(); renderMateSentences(); }
+            if(tabName === 'archive') renderArchive();
+        }
+
+        function handleEnter(e) {
+            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); translateWithGemini(); }
+        }
+
+        function renderProgress(){
+            const today = todayStr();
+            const todayCount = entries.filter(e => e.owner === myIdentity && e.createdAt === today && !e.isStolen).length;
+            document.getElementById('progressText').innerText = `(${todayCount}/${targetCount})`;
+            const percent = Math.min(100, (todayCount/targetCount)*100);
+            document.getElementById('progressBar').style.width = `${percent}%`;
+            document.getElementById('myCrewBar').style.width = `${percent}%`;
+            document.getElementById('myCrewText').innerText = `${todayCount}/${targetCount}`;
+            renderRivalNudge(todayCount);
+        }
+
+        function renderMate(){
+            const today = todayStr();
+            const mateCount = entries.filter(e => e.owner === mateOf(myIdentity) && e.createdAt === today && !e.isStolen).length;
+            const percent = Math.min(100, (mateCount/targetCount)*100);
+            document.getElementById('mateBar').style.width = `${percent}%`;
+            document.getElementById('mateText').innerText = `${mateCount}/${targetCount}`;
+        }
+
+        function renderRivalNudge(myCount){
+            const today = todayStr();
+            const mateCount = entries.filter(e => e.owner === mateOf(myIdentity) && e.createdAt === today && !e.isStolen).length;
+            const el = document.getElementById('rivalNudge');
+            if(mateCount > myCount){
+                el.textContent = `😤 상대가 ${mateCount - myCount}개 앞서고 있어요, 따라잡자!`;
+                el.className = 'text-[11px] font-bold text-center text-red-500';
+            } else if(myCount > mateCount && myCount > 0){
+                el.textContent = `🔥 내가 ${myCount - mateCount}개 앞섰어요, 계속 가자!`;
+                el.className = 'text-[11px] font-bold text-center text-[#166534]';
+            } else { el.classList.add('hidden'); return; }
+            el.classList.remove('hidden');
+        }
+
+        function extractJsonBlock(rawText){
+            let text = rawText.replace(/```json/gi, '').replace(/```/g, '').trim();
+            const jsonStart = text.indexOf('{');
+            const jsonEnd = text.lastIndexOf('}');
+            if (jsonStart === -1 || jsonEnd === -1 || jsonEnd < jsonStart) {
+                throw new Error("응답에서 JSON 블록을 찾지 못했습니다.");
+            }
+            return text.slice(jsonStart, jsonEnd + 1);
+        }
+
+        async function callGeminiOrFake(prompt){
+            if(isTestMode){
+                const fake = FAKE_RESPONSES[fakeResponseIndex % FAKE_RESPONSES.length];
+                fakeResponseIndex++;
+                console.log(`[TEST MODE] 가짜 응답 사용: ${fake.label}`);
+                await new Promise(r => setTimeout(r, 400));
+                return { candidates: [{ content: { parts: [{ text: fake.raw }] }, finishReason: 'STOP' }] };
+            }
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: prompt }] }],
+                    generationConfig: {
+                        responseMimeType: "application/json",
+                        responseSchema: {
+                            type: "OBJECT",
+                            properties: {
+                                english: { type: "STRING" }, vocab_word: { type: "STRING" },
+                                vocab_meaning: { type: "STRING" }, tip: { type: "STRING" },
+                                tag: { type: "STRING", enum: TAG_OPTIONS }
+                            },
+                            required: ["english", "vocab_word", "vocab_meaning", "tip", "tag"]
+                        }
+                    }
+                })
+            });
+            return await response.json();
+        }
+
+        async function translateWithGemini() {
+            const inputField = document.getElementById('koreanInput');
+            const inputTxt = inputField.value.trim();
+            if(!inputTxt) return;
+
+            if(!isTestMode && (!GEMINI_API_KEY || GEMINI_API_KEY.includes('여기에'))) {
+                alert("코드 아래쪽 GEMINI_API_KEY 자리에 구글 API 키를 입력해 주세요!");
+                return;
+            }
+
+            const spinner = document.getElementById('loadingSpinner');
+            spinner.classList.remove('hidden');
+
+            try {
+                const prompt = `사용자가 작성한 한국어/콩글리시 문장을 실제 원어민이 회화에서 자연스럽게 쓰는 아주 쉬운 영어 문장으로 바꿔줘. 격식체나 교과서 표현은 피하고 캐주얼한 회화체로.
+핵심 단어나 표현 1개를 뽑아줘.
+tip에는 왜 이 표현이 자연스러운지 1~2문장으로 설명해줘.
+카테고리는 다음 중 하나만 정확히 골라줘: ${TAG_OPTIONS.join(', ')}. 애매하면 "일상"으로 골라줘.
+
+사용자 입력: "${inputTxt}"
+
+반드시 오직 아래 JSON 구조로만 대답해줘. 설명, 인사말, 코드펜스 없이 JSON 객체만 출력해:
+{
+  "english": "원어민 영어 문장",
+  "vocab_word": "주요 단어 1개",
+  "vocab_meaning": "단어 뜻",
+  "tip": "팁 설명 (1~2줄)",
+  "tag": "${TAG_OPTIONS.join('|')}"
+}`;
+
+                const data = await callGeminiOrFake(prompt);
+                if(data.error){ throw new Error(data.error.message || 'API 오류'); }
+
+                const candidate = data.candidates?.[0];
+                if(!candidate){ throw new Error("AI 응답이 비어 있습니다 (콘텐츠 필터에 걸렸을 수 있어요)."); }
+                if(candidate.finishReason && candidate.finishReason !== 'STOP'){
+                    throw new Error(`AI 응답이 중간에 끊겼습니다 (사유: ${candidate.finishReason})`);
+                }
+
+                const rawText = candidate.content.parts[0].text.trim();
+                console.log("[Gemini 원문 응답]", rawText);
+
+                let resultJson;
+                try {
+                    resultJson = JSON.parse(extractJsonBlock(rawText));
+                } catch (parseErr) {
+                    console.error("[JSON 파싱 실패] 원문:", rawText, parseErr);
+                    throw new Error("AI 응답을 해석하지 못했어요. 콘솔(F12)에서 원문을 확인해주세요.");
+                }
+
+                if(!resultJson.english) throw new Error("AI 응답에 영어 문장이 없습니다.");
+                if(!TAG_OPTIONS.includes(resultJson.tag)) resultJson.tag = '일상';
+
+                inputField.value = "";
+                const entryId = 'e' + Date.now();
+
+                const cardHTML = `
+                    <div id="${entryId}" class="bg-white p-3.5 rounded-xl shadow-2xs border border-[#bbf7d0] flex flex-col gap-2 relative">
+                        <div class="flex justify-between items-center mb-0.5">
+                            <span class="text-[10px] font-bold text-gray-400 tracking-wider">DEPARTURE</span>
+                            <div class="flex gap-1.5">
+                                <button onclick="saveSentence('${entryId}')" class="bg-[#144d29] text-white px-2.5 py-1.5 rounded text-[10px] font-bold shadow-2xs active:scale-95 transition cursor-pointer">➕ 내 여권에 담기</button>
+                                <button onclick="discardSentence('${entryId}')" class="bg-gray-100 text-gray-500 px-2.5 py-1.5 rounded text-[10px] font-bold hover:text-red-500 transition cursor-pointer">삭제</button>
+                            </div>
+                        </div>
+                        <p class="text-[13px] font-bold text-slate-700">${escapeHtml(inputTxt)}</p>
+                        <div class="bg-[#fafdF7] p-3 rounded-xl border border-[#e6f7ed] relative mt-1">
+                            <span class="text-[10px] font-bold text-[#166534] tracking-wider block mb-0.5">ARRIVAL <span class="ml-1 bg-[#e6f7ed] text-[#166534] px-1.5 py-0.5 rounded-full text-[9px]">#${escapeHtml(resultJson.tag)}</span></span>
+                            <button onclick="speakText('${esc1(resultJson.english)}')" class="absolute top-2.5 right-2.5 text-gray-400 hover:text-[#166534] transition cursor-pointer">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5 10.5a1.5 1.5 0 00-1.5 1.5v4a1.5 1.5 0 001.5 1.5h3.586a1 1 0 01.707.293l4.414 4.414a1 1 0 001.707-.707V4.5a1 1 0 00-1.707-.707L10.293 8.207A1 1 0 019.586 8.5H5z"></path></svg>
+                            </button>
+                            <p class="text-[14px] font-bold text-[#166534] pr-6">${escapeHtml(resultJson.english)}</p>
+                            <div class="mt-1.5 pt-1.5 border-t border-[#bbf7d0] flex flex-col gap-1.5">
+                                <span class="text-[11px] font-medium text-slate-600"><b class="text-[#166534]">${escapeHtml(resultJson.vocab_word)}</b>: ${escapeHtml(resultJson.vocab_meaning)}</span>
+                                <div class="bg-white p-2 rounded border border-gray-100">
+                                    <span class="text-[10px] font-bold text-[#144d29] block mb-0.5">💡 FLIGHT TIP</span>
+                                    <p class="text-[11.5px] text-slate-600 leading-tight">${escapeHtml(resultJson.tip)}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>`;
+                document.getElementById('resultContainer').insertAdjacentHTML('afterbegin', cardHTML);
+                document.getElementById(entryId).dataset.payload = JSON.stringify({
+                    original: inputTxt, english: resultJson.english, vocabWord: resultJson.vocab_word,
+                    vocabMeaning: resultJson.vocab_meaning, tip: resultJson.tip, tag: resultJson.tag
+                });
+            } catch (error) {
+                console.error(error);
+                alert("환전 중 오류가 발생했습니다: " + error.message);
+            } finally {
+                spinner.classList.add('hidden');
+            }
+        }
+
+        function discardSentence(cardId) { const c = document.getElementById(cardId); if(c) c.remove(); }
+
+        async function saveSentence(cardId) {
+            const card = document.getElementById(cardId);
+            if(!card) return;
+            const payload = JSON.parse(card.dataset.payload);
+            const today = todayStr();
+            await addEntry({
+                owner: myIdentity,
+                original: payload.original, english: payload.english,
+                vocabWord: payload.vocabWord, vocabMeaning: payload.vocabMeaning, tip: payload.tip,
+                tag: payload.tag, cheerCount: 0, cheeredBy: [], isStolen: false,
+                createdAt: today, stage: 0, nextReview: addDays(today, intervals[0])
+            });
+            discardSentence(cardId);
+            switchTab('lounge');
+        }
+
+        function renderLounge(){
+            const today = todayStr();
+            const due = entries.filter(e => e.owner === myIdentity && e.nextReview <= today && e.stage < intervals.length);
+            const container = document.getElementById('loungeContainer');
+            if(due.length === 0){
+                container.innerHTML = `<div class="bg-white p-4 rounded-xl shadow-2xs border border-gray-100 text-center text-gray-400 text-[12px] font-bold">오늘 복습할 문장이 없어요. EXCHANGE에서 새 문장을 만들어보세요 ✈️</div>`;
+                return;
+            }
+            container.innerHTML = due.map(item => `
+                <div class="bg-white p-4 rounded-xl shadow-2xs border border-gray-100 flex flex-col relative">
+                    <button onclick="speakText('${esc1(item.english)}')" class="absolute top-3 right-3 text-gray-400 hover:text-[#144d29] transition cursor-pointer">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5 10.5a1.5 1.5 0 00-1.5 1.5v4a1.5 1.5 0 001.5 1.5h3.586a1 1 0 01.707.293l4.414 4.414a1 1 0 001.707-.707V4.5a1 1 0 00-1.707-.707L10.293 8.207A1 1 0 019.586 8.5H5z"></path></svg>
+                    </button>
+                    <span class="text-[9px] font-bold text-gray-400 mb-1">#${escapeHtml(item.tag||'일상')}</span>
+                    <p class="text-[13px] font-bold text-slate-700 pr-6 mb-3">"${escapeHtml(item.original)}"</p>
+                    <div onclick="this.classList.add('revealed')" class="blur-text bg-[#fafdF7] px-3 py-3 rounded-xl border border-[#bbf7d0] cursor-pointer w-full shadow-inner">
+                        <p class="text-[14px] font-bold text-[#166534]">${escapeHtml(item.english)}</p>
+                    </div>
+                    <div class="flex gap-1.5 mt-3">
+                        <button onclick="reviewResult('${item.id}','forget')" class="flex-1 bg-white border border-gray-200 text-slate-600 font-bold py-2.5 rounded-xl shadow-2xs hover:bg-gray-50 active:scale-95 transition text-[12px] cursor-pointer">🟡 내일 또 보기</button>
+                        <button onclick="reviewResult('${item.id}','remember')" class="flex-1 bg-[#144d29] text-white font-bold py-2.5 rounded-xl shadow-2xs hover:bg-[#166534] active:scale-95 transition text-[12px] cursor-pointer">🟢 완벽 마스터</button>
+                    </div>
+                </div>`).join('');
+        }
+
+        async function reviewResult(id, result){
+            const item = entries.find(e => e.id === id);
+            if(!item) return;
+            const stage = result === 'remember' ? Math.min(item.stage+1, intervals.length-1) : 0;
+            await updateEntry(id, { stage, nextReview: addDays(todayStr(), intervals[stage]) });
+        }
+
+        function loadMateState(){
+            try{ return JSON.parse(localStorage.getItem(MATE_STATE_KEY)) || {}; }catch(e){ return {}; }
+        }
+        function saveMateState(state){ localStorage.setItem(MATE_STATE_KEY, JSON.stringify(state)); }
+
+        function renderMateSentences(){
+            const today = todayStr();
+            const mateId = mateOf(myIdentity);
+            const mateToday = entries.filter(e => e.owner === mateId && e.createdAt === today && !e.isStolen);
+            const container = document.getElementById('mateSentencesContainer');
+
+            if(mateToday.length === 0){
+                container.innerHTML = `<div class="bg-white p-4 rounded-xl shadow-2xs border border-gray-100 text-center text-gray-400 text-[12px] font-bold">아직 오늘 저장한 문장이 없어요.</div>`;
+                return;
+            }
+
+            container.innerHTML = mateToday.map(s => {
+                const cheered = (s.cheeredBy || []).includes(myIdentity);
+                return `
+                <div class="bg-white p-3 rounded-xl border border-gray-100 shadow-2xs relative flex flex-col gap-1.5">
+                    <div class="flex justify-between items-center pr-16">
+                        <span class="text-[9px] font-bold text-gray-400">#${escapeHtml(s.tag)}</span>
+                    </div>
+                    <p class="text-[12px] font-bold text-slate-600">${escapeHtml(s.original)}</p>
+                    <p class="text-[13px] font-bold text-[#166534]">${escapeHtml(s.english)}</p>
+                    <div class="absolute top-3 right-3 flex items-center gap-1.5">
+                        <button onclick="cheerMate('${s.id}')" ${cheered ? 'disabled' : ''} class="${cheered ? 'bg-pink-500 text-white' : 'bg-pink-50 text-pink-500 border border-pink-100'} px-2 py-1 rounded-full text-[10px] font-bold shadow-2xs transition cursor-pointer flex items-center gap-0.5">
+                            ${cheered ? `💗 응원함 (${s.cheerCount||0})` : '👍 응원'}
+                        </button>
+                        <button onclick="stealSentence('${s.id}')" class="bg-[#e6f7ed] text-[#166534] border border-[#bbf7d0] px-2 py-1 rounded-full text-[10px] font-bold shadow-2xs transition cursor-pointer flex items-center gap-0.5">
+                            📌 훔쳐오기
+                        </button>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        async function cheerMate(id){
+            const item = entries.find(e => e.id === id);
+            if(!item) return;
+            const cheeredBy = item.cheeredBy || [];
+            if(cheeredBy.includes(myIdentity)) return;
+            await updateEntry(id, { cheeredBy: [...cheeredBy, myIdentity], cheerCount: (item.cheerCount||0) + 1 });
+        }
+
+        async function stealSentence(id){
+            const s = entries.find(e => e.id === id);
+            if(!s) return;
+            const today = todayStr();
+            await addEntry({
+                owner: myIdentity,
+                original: s.original, english: s.english, vocabWord: '', vocabMeaning: '',
+                tip: `${mateOf(myIdentity) === 'orgol' ? '오르골' : '세알'}에게서 훔쳐온 표현이에요.`,
+                tag: s.tag, isStolen: true, cheerCount: 0, cheeredBy: [],
+                createdAt: today, stage: 0, nextReview: addDays(today, intervals[0])
+            });
+        }
+
+        function renderTagRow(){
+            const myEntries = entries.filter(e => e.owner === myIdentity);
+            const usedTags = [...new Set(myEntries.map(e => e.tag).filter(Boolean))];
+            const tags = ['전체보기', '세알_추천', ...usedTags];
+            const row = document.getElementById('tagRow');
+            row.innerHTML = tags.map(t => {
+                const active = t === activeTag;
+                const cls = active
+                    ? 'bg-[#144d29] text-white'
+                    : (t === '세알_추천' ? 'bg-white border border-[#bbf7d0] text-[#166534]' : 'bg-white border border-gray-200 text-gray-600');
+                return `<button onclick="setActiveTag('${t}')" class="shrink-0 ${cls} text-[10.5px] font-bold px-2.5 py-1.5 rounded-full shadow-2xs cursor-pointer">#${t}</button>`;
+            }).join('');
+        }
+        function setActiveTag(t){ activeTag = t; renderTagRow(); renderArchive(); }
+
+        function renderArchive(){
+            renderTagRow();
+            const container = document.getElementById('archiveContainer');
+            const q = (document.getElementById('archiveSearch').value || '').toLowerCase();
+
+            let filtered = entries.filter(e => e.owner === myIdentity && (
+                !q || e.original.toLowerCase().includes(q) || e.english.toLowerCase().includes(q) || (e.vocabWord||'').toLowerCase().includes(q)
+            ));
+            if(activeTag === '세알_추천') filtered = filtered.filter(e => e.isStolen);
+            else if(activeTag !== '전체보기') filtered = filtered.filter(e => e.tag === activeTag);
+
+            if(filtered.length === 0){
+                container.innerHTML = `<div class="bg-white p-4 rounded-xl shadow-2xs border border-gray-100 text-center text-gray-400 text-[12px] font-bold">아직 저장한 문장이 없어요.</div>`;
+                return;
+            }
+
+            const byMonth = {};
+            filtered.forEach(e => { const ym = e.createdAt.slice(0,7); (byMonth[ym] = byMonth[ym]||[]).push(e); });
+            const months = Object.keys(byMonth).sort().reverse();
+
+            container.innerHTML = months.map((ym, idx) => {
+                const [y, m] = ym.split('-');
+                const list = byMonth[ym];
+                const contentId = `month-${ym}`, iconId = `icon-${ym}`;
+                const openClass = idx === 0 ? 'open' : '';
+                return `
+                <div class="bg-white rounded-xl shadow-2xs border border-gray-100 overflow-hidden">
+                    <button onclick="toggleAccordion('${contentId}', '${iconId}')" class="w-full bg-[#fafdF7] px-3.5 py-3 flex justify-between items-center cursor-pointer">
+                        <span class="font-bold text-[#144d29] text-[12px]">${y}년 ${parseInt(m)}월 마스터 (${list.length})</span>
+                        <span id="${iconId}" class="rotate-icon ${openClass} text-gray-400 text-xs">▼</span>
+                    </button>
+                    <div id="${contentId}" class="accordion-content ${openClass} bg-white">
+                        <div class="p-3.5 flex flex-col gap-3">
+                            ${list.map(e => `
+                                <div class="border-b border-gray-50 pb-2.5 relative pr-8">
+                                    <button onclick="speakText('${esc1(e.english)}')" class="absolute top-1 right-0 text-gray-400 hover:text-[#144d29] transition cursor-pointer">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5 10.5a1.5 1.5 0 00-1.5 1.5v4a1.5 1.5 0 001.5 1.5h3.586a1 1 0 01.707.293l4.414 4.414a1 1 0 001.707-.707V4.5a1 1 0 00-1.707-.707L10.293 8.207A1 1 0 019.586 8.5H5z"></path></svg>
+                                    </button>
+                                    <span class="bg-gray-100 text-gray-500 text-[9.5px] font-bold px-1.5 py-0.5 rounded-md mb-1 inline-block">#${escapeHtml(e.tag||'일상')}${e.isStolen ? ' · #세알_추천' : ''}</span>
+                                    <p class="text-[12px] font-bold text-slate-700">${escapeHtml(e.original)}</p>
+                                    <p class="text-[13px] font-bold text-[#166534] mt-0.5">${escapeHtml(e.english)}</p>
+                                    <p class="text-[10.5px] text-gray-400 mt-1">${e.stage}/${intervals.length}단계 ${e.vocabWord ? `· <b class="text-[#166534]">${escapeHtml(e.vocabWord)}</b> ${escapeHtml(e.vocabMeaning)}` : ''} · ❤️ ${e.cheerCount||0}</p>
+                                </div>`).join('')}
+                        </div>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        function toggleAccordion(contentId, iconId) {
+            document.getElementById(contentId).classList.toggle('open');
+            document.getElementById(iconId).classList.toggle('open');
+        }
+
+        // PWA: 서비스워커 없이도 iOS/Android "홈 화면에 추가"는 manifest + apple-touch-icon만으로 동작
+        loadAll();
+    </script>
+</body>
+</html>
