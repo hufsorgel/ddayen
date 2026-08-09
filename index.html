@@ -47,9 +47,9 @@
 
             <!-- 날짜 & 디데이 -->
             <div class="flex gap-1.5 relative">
-                <div class="flex-1 bg-white border border-gray-200 rounded-xl py-2 px-2 flex items-center justify-center gap-1 font-bold text-slate-700 shadow-2xs">
+                <button onclick="openCalendar()" class="flex-1 bg-white border border-gray-200 rounded-xl py-2 px-2 flex items-center justify-center gap-1 font-bold text-slate-700 shadow-2xs cursor-pointer hover:bg-gray-50 active:scale-95 transition">
                     🗓️ <span id="displayDate">불러오는 중...</span>
-                </div>
+                </button>
                 <button onclick="openDdayPicker()" class="flex-1 bg-[#e6f7ed] border border-[#bbf7d0] rounded-xl py-2 px-2 flex items-center justify-center gap-1 font-bold text-[#166534] shadow-2xs cursor-pointer hover:bg-[#d1fae5] active:scale-95 transition">
                     ⏳ <span id="displayDday">계산 중...</span>
                 </button>
@@ -158,13 +158,30 @@
 
     </div>
 
+    <!-- ==================== 캘린더 모달 ==================== -->
+    <div id="calendarModal" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onclick="if(event.target===this) closeCalendar()">
+        <div class="bg-white rounded-2xl w-full max-w-md p-4 flex flex-col gap-3 max-h-[85vh] overflow-y-auto">
+            <div class="flex items-center justify-between">
+                <button onclick="shiftCalendarMonth(-1)" class="w-8 h-8 rounded-full bg-gray-100 text-gray-600 font-bold cursor-pointer">‹</button>
+                <span id="calendarMonthLabel" class="font-bold text-[#144d29] text-[15px]"></span>
+                <button onclick="shiftCalendarMonth(1)" class="w-8 h-8 rounded-full bg-gray-100 text-gray-600 font-bold cursor-pointer">›</button>
+            </div>
+            <div class="grid grid-cols-7 gap-1 text-center text-[10px] font-bold text-gray-400">
+                <span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span>
+            </div>
+            <div id="calendarGrid" class="grid grid-cols-7 gap-1"></div>
+            <div id="calendarDayDetail" class="flex flex-col gap-1.5 border-t border-gray-100 pt-3"></div>
+            <button onclick="closeCalendar()" class="mt-1 bg-gray-100 text-gray-600 font-bold py-2 rounded-xl text-[12px] cursor-pointer">닫기</button>
+        </div>
+    </div>
+
     <!-- ============================================================ -->
     <!-- Firebase (Firestore) - 실시간 동기화                          -->
     <!-- ============================================================ -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
         import {
-            getFirestore, collection, addDoc, updateDoc, doc,
+            getFirestore, collection, addDoc, updateDoc, deleteDoc, doc,
             onSnapshot, query, orderBy
         } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
@@ -194,6 +211,9 @@
                 };
                 window.__fsUpdateEntry = async (id, changes) => {
                     await updateDoc(doc(db, "entries", id), changes);
+                };
+                window.__fsDeleteEntry = async (id) => {
+                    await deleteDoc(doc(db, "entries", id));
                 };
 
                 const q = query(entriesCol, orderBy("createdAt", "desc"));
@@ -314,6 +334,16 @@
                 window.__onEntriesUpdate(entries);
             }
         }
+        async function deleteEntry(id){
+            if(!confirm('이 문장을 삭제할까요? 복습 기록과 전체기록에서 모두 사라집니다.')) return;
+            if(window.__firebaseReady){
+                await window.__fsDeleteEntry(id);
+            } else {
+                entries = entries.filter(e => e.id !== id);
+                saveLocalFallback();
+                window.__onEntriesUpdate(entries);
+            }
+        }
 
         function loadAll(){
             myIdentity = localStorage.getItem(IDENTITY_KEY) || 'orgol';
@@ -372,6 +402,86 @@
                 localStorage.setItem(DDAY_KEY, e.target.value);
                 initDates();
             }
+        }
+
+        // ============================================================
+        // 달력 팝업: 이번 달 중 문장을 만든 날짜를 하이라이트하고,
+        // 날짜를 누르면 그날 만든 문장을 보여줍니다.
+        // ============================================================
+        let calendarYear, calendarMonth; // calendarMonth는 0부터 시작 (JS Date 규칙)
+        let calendarSelectedDate = null;
+
+        function openCalendar(){
+            const today = new Date();
+            calendarYear = today.getFullYear();
+            calendarMonth = today.getMonth();
+            calendarSelectedDate = todayStr();
+            document.getElementById('calendarModal').classList.remove('hidden');
+            renderCalendar();
+        }
+        function closeCalendar(){
+            document.getElementById('calendarModal').classList.add('hidden');
+        }
+        function shiftCalendarMonth(delta){
+            calendarMonth += delta;
+            if(calendarMonth < 0){ calendarMonth = 11; calendarYear--; }
+            if(calendarMonth > 11){ calendarMonth = 0; calendarYear++; }
+            calendarSelectedDate = null;
+            renderCalendar();
+        }
+
+        function renderCalendar(){
+            document.getElementById('calendarMonthLabel').innerText = `${calendarYear}년 ${calendarMonth + 1}월`;
+
+            const myEntries = entries.filter(e => e.owner === myIdentity);
+            const countByDate = {};
+            myEntries.forEach(e => { countByDate[e.createdAt] = (countByDate[e.createdAt] || 0) + 1; });
+
+            const firstWeekday = new Date(calendarYear, calendarMonth, 1).getDay();
+            const daysInMonth = new Date(calendarYear, calendarMonth + 1, 0).getDate();
+            const todayS = todayStr();
+
+            let cells = '';
+            for(let i = 0; i < firstWeekday; i++){ cells += `<div></div>`; }
+            for(let d = 1; d <= daysInMonth; d++){
+                const dateStr = `${calendarYear}-${pad2(calendarMonth+1)}-${pad2(d)}`;
+                const hasEntries = !!countByDate[dateStr];
+                const isToday = dateStr === todayS;
+                const isSelected = dateStr === calendarSelectedDate;
+                const base = 'w-full aspect-square rounded-lg flex items-center justify-center text-[12px] font-bold cursor-pointer transition';
+                let cls;
+                if(isSelected) cls = `${base} bg-[#144d29] text-white`;
+                else if(hasEntries) cls = `${base} bg-[#e6f7ed] text-[#166534] border border-[#bbf7d0]`;
+                else cls = `${base} text-gray-400 hover:bg-gray-50`;
+                const ring = isToday && !isSelected ? ' ring-1 ring-[#144d29]' : '';
+                cells += `<button onclick="selectCalendarDay('${dateStr}')" class="${cls}${ring}">${d}</button>`;
+            }
+            document.getElementById('calendarGrid').innerHTML = cells;
+            renderCalendarDayDetail();
+        }
+
+        function selectCalendarDay(dateStr){
+            calendarSelectedDate = dateStr;
+            renderCalendar();
+        }
+
+        function renderCalendarDayDetail(){
+            const container = document.getElementById('calendarDayDetail');
+            if(!calendarSelectedDate){ container.innerHTML = ''; return; }
+            const dayEntries = entries.filter(e => e.owner === myIdentity && e.createdAt === calendarSelectedDate);
+            const [y, m, d] = calendarSelectedDate.split('-');
+            const label = `${y}년 ${parseInt(m)}월 ${parseInt(d)}일`;
+
+            if(dayEntries.length === 0){
+                container.innerHTML = `<p class="text-[11px] font-bold text-gray-400 text-center py-2">${label}에는 만든 문장이 없어요.</p>`;
+                return;
+            }
+            container.innerHTML = `<p class="text-[11px] font-bold text-gray-500">${label} · ${dayEntries.length}개</p>` +
+                dayEntries.map(e => `
+                    <div class="bg-[#fafdF7] border border-gray-100 rounded-lg p-2.5">
+                        <p class="text-[11.5px] font-bold text-slate-600">${escapeHtml(e.original)}</p>
+                        <p class="text-[12.5px] font-bold text-[#166534] mt-0.5">${escapeHtml(e.english)}</p>
+                    </div>`).join('');
         }
 
         function speakText(text) {
@@ -709,10 +819,15 @@ tip에는 왜 이 표현이 자연스러운지 1~2문장으로 설명해줘.
                     <div id="${contentId}" class="accordion-content ${openClass} bg-white">
                         <div class="p-3.5 flex flex-col gap-3">
                             ${list.map(e => `
-                                <div class="border-b border-gray-50 pb-2.5 relative pr-8">
-                                    <button onclick="speakText('${esc1(e.english)}')" class="absolute top-1 right-0 text-gray-400 hover:text-[#144d29] transition cursor-pointer">
-                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5 10.5a1.5 1.5 0 00-1.5 1.5v4a1.5 1.5 0 001.5 1.5h3.586a1 1 0 01.707.293l4.414 4.414a1 1 0 001.707-.707V4.5a1 1 0 00-1.707-.707L10.293 8.207A1 1 0 019.586 8.5H5z"></path></svg>
-                                    </button>
+                                <div class="border-b border-gray-50 pb-2.5 relative pr-14">
+                                    <div class="absolute top-1 right-0 flex items-center gap-2">
+                                        <button onclick="speakText('${esc1(e.english)}')" class="text-gray-400 hover:text-[#144d29] transition cursor-pointer">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5 10.5a1.5 1.5 0 00-1.5 1.5v4a1.5 1.5 0 001.5 1.5h3.586a1 1 0 01.707.293l4.414 4.414a1 1 0 001.707-.707V4.5a1 1 0 00-1.707-.707L10.293 8.207A1 1 0 019.586 8.5H5z"></path></svg>
+                                        </button>
+                                        <button onclick="deleteEntry('${e.id}')" class="text-gray-400 hover:text-red-500 transition cursor-pointer">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                        </button>
+                                    </div>
                                     <span class="bg-gray-100 text-gray-500 text-[9.5px] font-bold px-1.5 py-0.5 rounded-md mb-1 inline-block">#${escapeHtml(e.tag||'일상')}${e.isStolen ? ' · #'+escapeHtml(mateRecommendLabel()) : ''}</span>
                                     <p class="text-[12px] font-bold text-slate-700">${escapeHtml(e.original)}</p>
                                     <p class="text-[13px] font-bold text-[#166534] mt-0.5">${escapeHtml(e.english)}</p>
