@@ -306,6 +306,8 @@
         window.__onEntriesUpdate = (list) => {
             entries = list;
             renderProgress(); renderMate(); renderLounge(); renderMateSentences(); renderArchive();
+            const calendarModal = document.getElementById('calendarModal');
+            if(calendarModal && !calendarModal.classList.contains('hidden')) renderCalendar();
         };
 
         // Firestore가 연결 안 됐을 때를 대비한 로컬 폴백 저장소 (기기 단독 테스트용)
@@ -772,7 +774,8 @@ tip에는 왜 이 표현이 자연스러운지 1~2문장으로 설명해줘.
         function renderTagRow(){
             const myEntries = entries.filter(e => e.owner === myIdentity);
             const usedTags = [...new Set(myEntries.map(e => e.tag).filter(Boolean))];
-            const tags = ['전체보기', MATE_TAG_KEY, ...usedTags];
+            const hasStolen = myEntries.some(e => e.isStolen);
+            const tags = ['전체보기', ...(hasStolen ? [MATE_TAG_KEY] : []), ...usedTags];
             const row = document.getElementById('tagRow');
             row.innerHTML = tags.map(t => {
                 const active = t === activeTag;
@@ -782,6 +785,8 @@ tip에는 왜 이 표현이 자연스러운지 1~2문장으로 설명해줘.
                     : (t === MATE_TAG_KEY ? 'bg-white border border-[#bbf7d0] text-[#166534]' : 'bg-white border border-gray-200 text-gray-600');
                 return `<button onclick="setActiveTag('${t}')" class="shrink-0 ${cls} text-[10.5px] font-bold px-2.5 py-1.5 rounded-full shadow-2xs cursor-pointer">#${label}</button>`;
             }).join('');
+            // 훔쳐온 문장이 없어졌는데 그 태그가 선택돼 있던 상태라면 전체보기로 되돌림
+            if(activeTag === MATE_TAG_KEY && !hasStolen) activeTag = '전체보기';
         }
         function setActiveTag(t){ activeTag = t; renderTagRow(); renderArchive(); }
 

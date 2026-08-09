@@ -9,7 +9,7 @@ service cloud.firestore {
                     && request.resource.data.original is string
                     && request.resource.data.english is string;
       allow update: if resource.data.owner in ['orgol', 'seal'];
-      allow delete: if false; // 실수로 지워지는 것 방지, 필요하면 콘솔에서 직접 삭제
+      allow delete: if resource.data.owner in ['orgol', 'seal'];
     }
   }
 }
