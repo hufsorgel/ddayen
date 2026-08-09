@@ -1,0 +1,32 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1c6b3a"/>
+      <stop offset="100%" stop-color="#0f3d1f"/>
+    </linearGradient>
+    <linearGradient id="paper" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#eafaf0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- 배경 (rounded square, iOS/Android 아이콘 표준 비율) -->
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+
+  <!-- 은은한 원형 하이라이트 -->
+  <circle cx="256" cy="180" r="230" fill="#ffffff" opacity="0.04"/>
+
+  <!-- 종이비행기 (여행/전달의 상징) -->
+  <g transform="translate(256,246) rotate(-18)">
+    <path d="M -150 40 L 150 -70 L 40 90 L 5 20 Z" fill="url(#paper)"/>
+    <path d="M -150 40 L 40 90 L 5 20 Z" fill="#d7f2e2"/>
+    <path d="M 5 20 L 40 90 L 90 -5 Z" fill="#bdeacf"/>
+  </g>
+
+  <!-- 말풍선 꼬리 + EN 배지 -->
+  <g transform="translate(354,344)">
+    <rect x="-58" y="-34" width="116" height="68" rx="34" fill="#ffffff"/>
+    <path d="M -20 30 L -34 58 L 4 32 Z" fill="#ffffff"/>
+    <text x="0" y="10" font-family="Arial, Helvetica, sans-serif" font-size="34" font-weight="700" fill="#166534" text-anchor="middle">EN</text>
+  </g>
+</svg>
