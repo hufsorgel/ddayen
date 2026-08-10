@@ -11,7 +11,7 @@
     <meta name="apple-mobile-web-app-title" content="My Eng">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>나의 프리토킹 여권</title>
+    <title>My Eng</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body {
@@ -690,18 +690,20 @@ tip에는 왜 이 표현이 자연스러운지 1~2문장으로 설명해줘.
                 return;
             }
             container.innerHTML = due.map(item => `
-                <div class="bg-white p-4 rounded-xl shadow-2xs border border-gray-100 flex flex-col relative">
-                    <button onclick="speakText('${esc1(item.english)}')" class="absolute top-3 right-3 text-gray-400 hover:text-[#144d29] transition cursor-pointer">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5 10.5a1.5 1.5 0 00-1.5 1.5v4a1.5 1.5 0 001.5 1.5h3.586a1 1 0 01.707.293l4.414 4.414a1 1 0 001.707-.707V4.5a1 1 0 00-1.707-.707L10.293 8.207A1 1 0 019.586 8.5H5z"></path></svg>
-                    </button>
-                    <span class="text-[9px] font-bold text-gray-400 mb-1">#${escapeHtml(item.tag||'일상')}</span>
-                    <p class="text-[13px] font-bold text-slate-700 pr-6 mb-3">"${escapeHtml(item.original)}"</p>
-                    <div onclick="this.classList.add('revealed')" class="blur-text bg-[#fafdF7] px-3 py-3 rounded-xl border border-[#bbf7d0] cursor-pointer w-full shadow-inner">
+                <div class="bg-white p-4 rounded-xl shadow-2xs border border-gray-100 flex flex-col gap-1.5 relative">
+                    <div class="flex justify-between items-center pr-24">
+                        <span class="text-[9px] font-bold text-gray-400">#${escapeHtml(item.tag||'일상')}</span>
+                    </div>
+                    <p class="text-[13px] font-bold text-slate-700">"${escapeHtml(item.original)}"</p>
+                    <div onclick="this.classList.add('revealed')" class="blur-text bg-[#fafdF7] px-3 py-3 rounded-xl border border-[#bbf7d0] cursor-pointer w-full shadow-inner mt-1">
                         <p class="text-[14px] font-bold text-[#166534]">${escapeHtml(item.english)}</p>
                     </div>
-                    <div class="flex gap-1.5 mt-3">
-                        <button onclick="reviewResult('${item.id}','forget')" class="flex-1 bg-white border border-gray-200 text-slate-600 font-bold py-2.5 rounded-xl shadow-2xs hover:bg-gray-50 active:scale-95 transition text-[12px] cursor-pointer">🟡 내일 또 보기</button>
-                        <button onclick="reviewResult('${item.id}','remember')" class="flex-1 bg-[#144d29] text-white font-bold py-2.5 rounded-xl shadow-2xs hover:bg-[#166534] active:scale-95 transition text-[12px] cursor-pointer">🟢 완벽 마스터</button>
+                    <div class="absolute top-3 right-3 flex items-center gap-1.5">
+                        <button onclick="speakText('${esc1(item.english)}')" class="text-gray-400 hover:text-[#144d29] transition cursor-pointer">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5 10.5a1.5 1.5 0 00-1.5 1.5v4a1.5 1.5 0 001.5 1.5h3.586a1 1 0 01.707.293l4.414 4.414a1 1 0 001.707-.707V4.5a1 1 0 00-1.707-.707L10.293 8.207A1 1 0 019.586 8.5H5z"></path></svg>
+                        </button>
+                        <button onclick="reviewResult('${item.id}','forget')" class="bg-white border border-gray-200 text-slate-600 px-2 py-1 rounded-full text-[10px] font-bold shadow-2xs transition cursor-pointer">🟡 다시</button>
+                        <button onclick="reviewResult('${item.id}','remember')" class="bg-[#144d29] text-white px-2 py-1 rounded-full text-[10px] font-bold shadow-2xs transition cursor-pointer">🟢 마스터</button>
                     </div>
                 </div>`).join('');
         }
